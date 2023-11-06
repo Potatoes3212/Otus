@@ -106,9 +106,11 @@ Billing| Системы тарификации пользователей| Вс�
 # Описание решения
 
 ## Контекстная диаграмма
-![context_diagram](./diagrams/component_diagramm_billing_system.png)
+![context_diagram](./diagrams/context_diagram_billing_system.png)
 ## Диаграмма контейнеров
+![component_diagram](./diagrams/component_diagram_billing_system.png)
 
 ## Диаграмма развёртывания 
+![deployment_diagram](./diagrams/deployment_diagram_billing_system.png)
 
 ## Диаграмма последовательности для пользовательских сценариев
