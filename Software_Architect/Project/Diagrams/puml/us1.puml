@@ -1,0 +1,81 @@
+@startuml US_1
+title US-1 Подключение/отключение подписки пользователем
+autonumber
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 200
+
+actor "Пользователь" as U
+participant "COSMOS APP" as A
+
+participant "BFF" as B
+participant "subscription-manager" as S
+database "Subscription-Directory" as SD
+database "Subscriptions-History" as SH
+participant "corporate-billing-adapter" as BA
+box externalSystem #LightBlue
+participant "Corporate-billing" as CB
+end box
+participant "callback-receiver" as CR
+database "billing-notifications-outbox" as NU
+
+queue "notification.ServiceParametersChange" as NQ
+database "Redis" as R
+box consumerServices #Lightyellow
+participant "person-profile-manager" as P
+participant "user-settings-dao" as UD
+participant "user-settings-dao" as US
+participant "contact-manager" as CM
+participant "notification-manager" as NM
+end box
+
+U-->>A++: Подключает/отключате подписку 
+A->B++: Запрос на подключение/отключение подписки
+B->S++: Проксирует запрос на подключени/отключение подписки
+S-->SD: Получает атрибуты подписки и принадлежность к биллингу
+
+opt Если запрос на отключение
+S-->SH: Запрос действующей подписки пользователя    
+end
+
+S->BA++: Запрашивает подключение/отключение подписки 
+BA->CB++: Вызывает метод подключения/отключения подписки во внешней системе
+CB->CB++--: Принимает запрос для обработки
+CB-->>BA: 200 ok {subsctiptionId}
+BA-->>S--: 200 ok {subsctiptionId}
+S-->>B--: 200 ok
+B-->>A--: 200 ok 
+A-->>U--: Информация о том, что запрос принят успешно 
+
+CB->CR++: Нотификаци о изменении состояния подписки
+CR-->NU: Записывает нотификацию в OutBox
+CR-->>CB--: 200 ok 
+deactivate CB
+
+
+S-->NU: Читает нотификации из таблицы 
+activate S
+==Мехнизм синхронизации подписки с биллингом==
+S->BA++: Запрашивает актуальное состояние подписки у пользователя
+BA->CB++: Вызывает API полулечения подписки пользователя 
+CB-->BA--: 200 ok {subscription}
+BA-->S--: 200 ok {subscription}
+S-->SD: Получает атрибуты подписки
+S-->SH: Получает текущее состояния подписки на платформе 
+S->S++--: Сравнивает состояние на биллинге и на платформе
+S-->SH: Записывает подписку и её актуальное состояние 
+S-->R: Записывает подписку и её актуальное состояние 
+S-->NQ--: Отправляет событие о изменении состояния подписки
+
+P-->NQ: Читает событие 
+P->P++--: Применяет изменения для пользователя в своём контексте
+UD-->NQ: Читает событие 
+UD->UD++--: Применяет изменения для пользователя в своём контексте
+US-->NQ: Читает событие 
+US->US++--: Применяет изменения для пользователя в своём контексте
+CM-->NQ: Читает событие 
+CM->CM++--: Применяет изменения для пользователя в своём контексте
+
+NM-->NQ: Читает событие 
+NM-->>U--: Отправляет пользователю уведомление об изменении состояния подписки
+
+@enduml
